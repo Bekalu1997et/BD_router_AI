@@ -8,20 +8,16 @@
 % Enable CORS for all origins
 :- set_setting(http:cors, [*]).
 
-% Starts the HTTP server on the given port
-server(Port) :-
-    http_server(http_dispatch, [port(Port)]).
-
 % Main entry point that keeps the server running
 main :-
-    server(8080),
-    % Keep the main thread alive forever
-    repeat,
-    sleep(1),
-    fail.
+    getenv('PORT', PortAtom),
+    atom_number(PortAtom, Port),
+    http_server(http_dispatch, [port(Port)]),
+    format('Server running on port ~w~n', [Port]),
+    thread_get_message(_).
 
 % Start server immediately when the script is loaded
-:- initialization(main).
+:- initialization(main, main).
 
 % Define the route
 :- http_handler(root(route), route_handler, []).
@@ -34,7 +30,7 @@ main :-
 
 % HTTP handler for /route?start=Node&goal=Node
 route_handler(Request) :-
-    cors_enable,
+    cors_enable(Request, [methods([get, post, options])]),
     catch(
         (
             http_parameters(Request, [
@@ -53,8 +49,8 @@ route_handler(Request) :-
         )
     ).
 
-nodes_handler(_Request) :-
-    cors_enable,
+nodes_handler(Request) :-
+    cors_enable(Request, [methods([get, options])]),
     catch(
         (
             findall(_{name: Name, lat: Lat, lng: Lng}, node_coords(Name, Lat, Lng), Nodes),
@@ -65,7 +61,7 @@ nodes_handler(_Request) :-
     ).
 
 nearest_handler(Request) :-
-    cors_enable,
+    cors_enable(Request, [methods([get, options])]),
     catch(
         (
             http_parameters(Request, [
