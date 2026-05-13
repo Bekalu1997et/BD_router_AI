@@ -65,21 +65,36 @@ nearest_handler(Request) :-
     catch(
         (
             http_parameters(Request, [
-                lat(Lat, [number]),
-                lng(Lng, [number])
+                lat(LatParam, [atom]),
+                lng(LngParam, [atom])
             ]),
-            findall(Dist-Name, (
-                node_coords(Name, NLat, NLng),
-                haversine(NLat, NLng, Lat, Lng, Dist)
-            ), Pairs),
-            sort(Pairs, Sorted),
-            (   Sorted = [MinDist-Nearest|_]
-            ->  reply_json_dict(_{node: Nearest, distance_km: MinDist})
-            ;   reply_json_dict(_{error: "No nodes available"})
+            % parse numbers leniently (accept atoms or numeric values)
+            (   parse_number(LatParam, Lat), parse_number(LngParam, Lng)
+            ->  findall(Dist-Name, (
+                    node_coords(Name, NLat, NLng),
+                    haversine(NLat, NLng, Lat, Lng, Dist)
+                ), Pairs),
+                sort(Pairs, Sorted),
+                (   Sorted = [MinDist-Nearest|_]
+                ->  reply_json_dict(_{node: Nearest, distance_km: MinDist})
+                ;   reply_json_dict(_{error: "No nodes available"})
+                )
+            ;   reply_json_dict(_{error: "Invalid lat/lng parameters"})
             )
         ),
         _,
         reply_json_dict(_{error: "Invalid parameters for nearest lookup"})
+    ).
+
+% parse_number(+Raw, -Number)
+% Accept numbers passed as atoms or numeric values and convert to Prolog numbers.
+parse_number(Raw, Num) :-
+    (   number(Raw)
+    ->  Num = Raw
+    ;   atom(Raw)
+    ->  catch(atom_number(Raw, N), _, fail), Num = N
+    ;   string(Raw)
+    ->  catch(number_string(N, Raw), _, fail), Num = N
     ).
 
 % --- A* Search Algorithm ---
@@ -131,7 +146,11 @@ edge(felege_hiwot_hospital, poly_technic, 4).
 edge(felege_hiwot_hospital, bus_station, 2).
 edge(bus_station, felege_hiwot_hospital, 2).
 
-edge(bus_station, main_market, 2).
+edge(bus_station, main_magit add .
+git commit -m "fix render production server - env PORT, CORS, cloud-safe lifecycle"
+git push origin maingit add .
+git commit -m "fix render production server - env PORT, CORS, cloud-safe lifecycle"
+git push origin mainrket, 2).
 edge(main_market, bus_station, 2).
 
 edge(main_market, main_roundabout, 2).
