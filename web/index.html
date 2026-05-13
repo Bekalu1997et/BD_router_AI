@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bahir Dar Intelligent Route Finder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="nav-content">
+            <div class="nav-logo">
+                <span class="logo-mark">BD</span>
+                <span>Bahir Dar Route AI</span>
+            </div>
+            <div class="nav-links">
+                <a class="nav-link active" onclick="switchPage('routeFinderPage', this)">Route Finder</a>
+                <a class="nav-link" onclick="switchPage('membersPage', this)">Group Members</a>
+                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">Dark</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Route Finder Page -->
+    <div id="routeFinderPage" class="page-section active">
+        <div class="layout-container">
+            <!-- Left Column: Form -->
+            <div class="left-column">
+                <div class="card">
+                    <div id="flashMsg" class="flash-message">Search cleared. Ready for new route!</div>
+
+                    <div class="header">
+                        <span class="eyebrow">A* Route Optimization</span>
+                        <h1>Bahir Dar Intelligent Route Finder</h1>
+                        <p>Select a start and destination to calculate the most efficient city route.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="locationSearch">Search Locations</label>
+                        <input id="locationSearch" class="text-input" type="search" placeholder="Search airport, market, hospital...">
+                        <div class="search-results" id="searchResults"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="routeMode">Route Mode</label>
+                        <select id="routeMode">
+                            <option value="shortest">Shortest route</option>
+                            <option value="fastest">Least traffic route</option>
+                            <option value="scenic">Scenic route</option>
+                            <option value="emergency">Hospital / emergency route</option>
+                            <option value="avoidCrowds">Avoid crowded areas</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="start" id="startLabel">Start Location</label>
+                        <select id="start"></select>
+                    </div>
+
+                    <div class="gps-panel">
+                        <div class="gps-header">
+                            <div>
+                                <strong>GPS Location</strong>
+                                <p>Detect your current position and snap it to the nearest Bahir Dar node.</p>
+                            </div>
+                            <span class="gps-pill" id="gpsStatus">Idle</span>
+                        </div>
+                        <div class="gps-actions">
+                            <button id="locateOnceBtn" class="btn btn-clear" type="button">Locate Now</button>
+                            <button id="startLiveGpsBtn" class="btn btn-clear" type="button">Start Live GPS</button>
+                            <button id="stopLiveGpsBtn" class="btn btn-clear" type="button" disabled>Stop Live GPS</button>
+                        </div>
+                        <div class="gps-grid">
+                            <div>
+                                <span>Coordinates</span>
+                                <strong id="gpsCoords">--</strong>
+                            </div>
+                            <div>
+                                <span>Nearest Node</span>
+                                <strong id="gpsNearest">--</strong>
+                            </div>
+                            <div>
+                                <span>Distance</span>
+                                <strong id="gpsDistance">--</strong>
+                            </div>
+                            <div>
+                                <span>Message</span>
+                                <strong id="gpsMessage">Waiting for GPS...</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="goal">Destination</label>
+                        <select id="goal"></select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="trafficLevel">Traffic Simulation</label>
+                        <select id="trafficLevel">
+                            <option value="normal">Normal roads</option>
+                            <option value="busy">Busy city center</option>
+                            <option value="heavy">Heavy traffic</option>
+                            <option value="closed">Main road closed</option>
+                        </select>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="findRouteBtn" class="btn">Find Optimal Route</button>
+                        <button id="clearBtn" class="btn btn-clear">Clear & Restart</button>
+                    </div>
+
+                    <div class="button-group secondary-actions">
+                        <button id="saveFavoriteBtn" class="btn btn-clear" type="button">Save Favorite</button>
+                        <button id="visualizeBtn" class="btn btn-clear" type="button">Visualize A*</button>
+                    </div>
+
+                    <div class="loading" id="loadingState">
+                        <div class="spinner"></div>
+                        <span>Calculating best path...</span>
+                    </div>
+
+                    <div class="error" id="errorState"></div>
+
+                    <div class="results" id="resultsSection">
+                        <div class="summary-grid" id="summaryGrid">
+                            <div class="summary-card">
+                                <span>Stops</span>
+                                <strong id="summaryStops">0</strong>
+                            </div>
+                            <div class="summary-card">
+                                <span>Distance</span>
+                                <strong id="summaryDistance">0 km</strong>
+                            </div>
+                            <div class="summary-card">
+                                <span>Time</span>
+                                <strong id="summaryTime">0 min</strong>
+                            </div>
+                            <div class="summary-card">
+                                <span>Mode</span>
+                                <strong id="summaryMode">Shortest</strong>
+                            </div>
+                        </div>
+
+                        <div class="cost-box">
+                            <span class="cost-label">Total Cost</span>
+                            <span class="cost-value" id="costValue">0</span>
+                        </div>
+
+                        <div class="panel-section" id="alternativesSection">
+                            <div class="section-title">Alternative Routes</div>
+                            <div class="alternative-list" id="alternativeRoutes"></div>
+                        </div>
+
+                        <div class="panel-section" id="favoritesSection">
+                            <div class="section-title">Favorite Routes</div>
+                            <div class="favorite-list" id="favoriteRoutes"></div>
+                        </div>
+
+                        <div class="panel-section" id="astarSection">
+                            <div class="section-title">A* Exploration</div>
+                            <div class="astar-log" id="astarLog"></div>
+                        </div>
+
+                        <div class="progress-container" id="progressContainer">
+                            <div class="progress-text">
+                                <span id="progressText">Step 0 of 0</span>
+                                <span>Progress</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" id="progressFill"></div>
+                            </div>
+                        </div>
+
+                        <div class="anim-controls" id="animControls">
+                            <button class="anim-btn primary" id="playBtn">Animate Route</button>
+                            <button class="anim-btn" id="pauseBtn" style="display:none;">Pause</button>
+                            <button class="anim-btn primary" id="resumeBtn" style="display:none;">Resume</button>
+                            <button class="anim-btn primary" id="replayBtn" style="display:none;">Replay</button>
+                        </div>
+
+                        <div class="step-list" id="pathContainer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Map -->
+            <div class="right-column">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Members Page -->
+    <div id="membersPage" class="page-section">
+        <div class="members-container">
+            <div class="members-header">
+                <span class="eyebrow">Project Team</span>
+                <h2>Group Members</h2>
+                <p>Bahir Dar University | Artificial Intelligence</p>
+            </div>
+
+            <div class="members-grid">
+                <div class="member-card">
+                    <div class="avatar">BD</div>
+                    <div class="member-name">BEZAWIT DIRES</div>
+                    <div class="member-id">ID: 1601086</div>
+                    <div class="member-badge">AI Group Member</div>
+                </div>
+                <div class="member-card">
+                    <div class="avatar">BF</div>
+                    <div class="member-name">BITANIA FINOTESELAM</div>
+                    <div class="member-id">ID: 1601175</div>
+                    <div class="member-badge">AI Group Member</div>
+                </div>
+                <div class="member-card">
+                    <div class="avatar">BA</div>
+                    <div class="member-name">BEZAWIT AYAL</div>
+                    <div class="member-id">ID: 1601082</div>
+                    <div class="member-badge">AI Group Member</div>
+                </div>
+                <div class="member-card">
+                    <div class="avatar">AA</div>
+                    <div class="member-name">ABEL AMARE</div>
+                    <div class="member-id">ID: 1601012</div>
+                    <div class="member-badge">AI Group Member</div>
+                </div>
+                <div class="member-card">
+                    <div class="avatar">BK</div>
+                    <div class="member-name">BEKALU ADANE</div>
+                    <div class="member-id">ID: 1600748</div>
+                    <div class="member-badge">AI Group Member</div>
+                </div>
+                <div class="member-card">
+                    <div class="avatar">BT</div>
+                    <div class="member-name">BEREKET TADDELE</div>
+                    <div class="member-id">ID: 1600798</div>
+                    <div class="member-badge">AI Group Member</div>
+                </div>
+            </div>
+
+            <div class="members-footer">
+                Total Members: 6 | Course: Artificial Intelligence | Bahir Dar University
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <script src="js/app.js" defer></script>
+</body>
+
+</html>
