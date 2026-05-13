@@ -1,0 +1,1 @@
+web: swipl -s server.pl
