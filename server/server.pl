@@ -5,15 +5,18 @@
 :- use_module(library(http/http_cors)).
 :- use_module(library(lists)).
 
-% Enable CORS for all origins
+% Enable CORS globally for all origins
 :- set_setting(http:cors, [*]).
 
 % Main entry point that keeps the server running
 main :-
-    getenv('PORT', PortAtom),
-    atom_number(PortAtom, Port),
-    http_server(http_dispatch, [port(Port)]),
-    format('Server running on port ~w~n', [Port]),
+    (   getenv('PORT', PortAtom)
+    ->  catch(atom_number(PortAtom, Port), _, Port = 8080)
+    ;   Port = 8080
+    ),
+    format('Starting server on port ~w~n', [Port]),
+    http_server(http_dispatch, [port(Port), workers(5)]),
+    format('Server successfully started on port ~w~n', [Port]),
     thread_get_message(_).
 
 % Start server immediately when the script is loaded
@@ -28,26 +31,38 @@ main :-
 % Nearest node lookup by lat/lng
 :- http_handler(root(nearest), nearest_handler, []).
 
+% Handle preflight OPTIONS requests for CORS
+:- http_handler(root(_), options_handler, [prefix, method(options)]).
+
+% OPTIONS handler for CORS preflight requests
+options_handler(Request) :-
+    cors_enable(Request, [methods([get, post, put, delete, options])]),
+    format('OPTIONS preflight request: ~w~n', [Request]),
+    reply_json_dict(_{status: "ok"}).
+
 % HTTP handler for /route?start=Node&goal=Node
 route_handler(Request) :-
     cors_enable(Request, [methods([get, post, options])]),
-    log_request(Request),
-    catch(
-        (
-            http_parameters(Request, [
-                start(Start, [atom]),
-                goal(Goal, [atom])
-            ]),
-            format('Parameters: start=~w goal=~w~n', [Start, Goal]),
-            (   astar(Start, Goal, Path, Cost)
-            ->  reply_json_dict(_{path: Path, cost: Cost})
-            ;   reply_json_dict(_{error: "No path found"})
+    (   member(method(Method), Request), Method = options
+    ->  reply_json_dict(_{status: "ok"})
+    ;   log_request(Request),
+        catch(
+            (
+                http_parameters(Request, [
+                    start(Start, [atom]),
+                    goal(Goal, [atom])
+                ]),
+                format('Route parameters: start=~w goal=~w~n', [Start, Goal]),
+                (   astar(Start, Goal, Path, Cost)
+                ->  reply_json_dict(_{path: Path, cost: Cost})
+                ;   reply_json_dict(_{error: "No path found"})
+                )
+            ),
+            Error,
+            (
+                format('Error in route_handler: ~w~n', [Error]),
+                reply_json_dict(_{error: "Invalid request parameters"})
             )
-        ),
-        _,
-        (
-            % In case of missing parameters or other errors
-            reply_json_dict(_{error: "Invalid request parameters"})
         )
     ).
 
@@ -60,39 +75,51 @@ log_request(Request) :-
 
 nodes_handler(Request) :-
     cors_enable(Request, [methods([get, options])]),
-    catch(
-        (
-            findall(_{name: Name, lat: Lat, lng: Lng}, node_coords(Name, Lat, Lng), Nodes),
-            reply_json_dict(_{nodes: Nodes})
-        ),
-        _,
-        reply_json_dict(_{error: "Unable to retrieve nodes"})
+    (   member(method(Method), Request), Method = options
+    ->  reply_json_dict(_{status: "ok"})
+    ;   catch(
+            (
+                findall(_{name: Name, lat: Lat, lng: Lng}, node_coords(Name, Lat, Lng), Nodes),
+                reply_json_dict(_{nodes: Nodes})
+            ),
+            Error,
+            (
+                format('Error in nodes_handler: ~w~n', [Error]),
+                reply_json_dict(_{error: "Unable to retrieve nodes"})
+            )
+        )
     ).
 
 nearest_handler(Request) :-
     cors_enable(Request, [methods([get, options])]),
-    catch(
-        (
-            http_parameters(Request, [
-                lat(LatParam, [atom]),
-                lng(LngParam, [atom])
-            ]),
-            % parse numbers leniently (accept atoms or numeric values)
-            (   parse_number(LatParam, Lat), parse_number(LngParam, Lng)
-            ->  findall(Dist-Name, (
-                    node_coords(Name, NLat, NLng),
-                    haversine(NLat, NLng, Lat, Lng, Dist)
-                ), Pairs),
-                sort(Pairs, Sorted),
-                (   Sorted = [MinDist-Nearest|_]
-                ->  reply_json_dict(_{node: Nearest, distance_km: MinDist})
-                ;   reply_json_dict(_{error: "No nodes available"})
+    (   member(method(Method), Request), Method = options
+    ->  reply_json_dict(_{status: "ok"})
+    ;   catch(
+            (
+                http_parameters(Request, [
+                    lat(LatParam, [atom]),
+                    lng(LngParam, [atom])
+                ]),
+                % parse numbers leniently (accept atoms or numeric values)
+                (   parse_number(LatParam, Lat), parse_number(LngParam, Lng)
+                ->  findall(Dist-Name, (
+                        node_coords(Name, NLat, NLng),
+                        haversine(NLat, NLng, Lat, Lng, Dist)
+                    ), Pairs),
+                    sort(Pairs, Sorted),
+                    (   Sorted = [MinDist-Nearest|_]
+                    ->  reply_json_dict(_{node: Nearest, distance_km: MinDist})
+                    ;   reply_json_dict(_{error: "No nodes available"})
+                    )
+                ;   reply_json_dict(_{error: "Invalid lat/lng parameters"})
                 )
-            ;   reply_json_dict(_{error: "Invalid lat/lng parameters"})
+            ),
+            Error,
+            (
+                format('Error in nearest_handler: ~w~n', [Error]),
+                reply_json_dict(_{error: "Invalid parameters for nearest lookup"})
             )
-        ),
-        _,
-        reply_json_dict(_{error: "Invalid parameters for nearest lookup"})
+        )
     ).
 
 % parse_number(+Raw, -Number)
