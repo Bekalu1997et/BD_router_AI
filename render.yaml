@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: bahir-server
+    runtime: docker
+    region: oregon
+    plan: free
+    dockerfile: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 8080

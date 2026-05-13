@@ -12,8 +12,16 @@
 server(Port) :-
     http_server(http_dispatch, [port(Port)]).
 
+% Main entry point that keeps the server running
+main :-
+    server(8080),
+    % Keep the main thread alive forever
+    repeat,
+    sleep(1),
+    fail.
+
 % Start server immediately when the script is loaded
-:- initialization(server(8080)).
+:- initialization(main).
 
 % Define the route
 :- http_handler(root(route), route_handler, []).
