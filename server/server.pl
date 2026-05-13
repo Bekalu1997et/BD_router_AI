@@ -31,12 +31,14 @@ main :-
 % HTTP handler for /route?start=Node&goal=Node
 route_handler(Request) :-
     cors_enable(Request, [methods([get, post, options])]),
+    log_request(Request),
     catch(
         (
             http_parameters(Request, [
                 start(Start, [atom]),
                 goal(Goal, [atom])
             ]),
+            format('Parameters: start=~w goal=~w~n', [Start, Goal]),
             (   astar(Start, Goal, Path, Cost)
             ->  reply_json_dict(_{path: Path, cost: Cost})
             ;   reply_json_dict(_{error: "No path found"})
@@ -48,6 +50,13 @@ route_handler(Request) :-
             reply_json_dict(_{error: "Invalid request parameters"})
         )
     ).
+
+% Log basic request info to stdout for cloud logs
+log_request(Request) :-
+    (   member(method(Method), Request) -> true ; Method = unknown ),
+    (   member(request_uri(URI), Request) -> true ; URI = unknown ),
+    (   member(host(Host), Request) -> true ; Host = unknown ),
+    format('HTTP request: ~w ~w host=~w~n', [Method, URI, Host]).
 
 nodes_handler(Request) :-
     cors_enable(Request, [methods([get, options])]),
