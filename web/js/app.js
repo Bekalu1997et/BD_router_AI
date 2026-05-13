@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8080';
+const API_BASE = 'https://bd-router-ai.onrender.com';
 
 const FALLBACK_NODES = [
     { name: 'bahir_dar_university', lat: 11.5933, lng: 37.3900, type: 'education' },
